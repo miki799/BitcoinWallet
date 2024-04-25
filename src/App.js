@@ -9,16 +9,17 @@ function Login({ onLogin }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setLoginError(false);
     if (username.trim() !== '' && password.trim() !== '') {
       setLoading(true);
-      axios.post(`/login`, {
+      axios.post(`/api/v1/login`, {
         username,
         password
       })
       .then(response => {
         setLoading(false);
-        const { token } = response.data;
-        onLogin(token);
+        const { accessToken, refreshToken, clientId } = response.data;
+        onLogin(accessToken, clientId);
       })
       .catch(error => {
         setLoading(false);
@@ -30,7 +31,7 @@ function Login({ onLogin }) {
   };
 
   return (
-    <div className="max-w-md mx-auto p-4 h-full flex flex-col justify-center">
+    <div className="max-w-4xl mx-auto p-4 h-full flex flex-col justify-center">
       <h1 className="text-2xl font-bold mb-4 text-center">Bitcoin Wallet</h1>
       <h1 className="text-xl font-bold mb-4 text-center">Login</h1>
       {loading && (
@@ -46,21 +47,21 @@ function Login({ onLogin }) {
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
           <label htmlFor="username" className="block text-sm font-semibold mb-2">Username</label>
-          <input 
-            type="text" 
-            id="username" 
-            value={username} 
-            onChange={(e) => setUsername(e.target.value)} 
+          <input
+            type="text"
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             className="w-full py-2 px-3 rounded border border-gray-300"
           />
         </div>
         <div className="mb-4">
           <label htmlFor="password" className="block text-sm font-semibold mb-2">Password</label>
-          <input 
-            type="password" 
-            id="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
+          <input
+            type="password"
+            id="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             className="w-full py-2 px-3 rounded border border-gray-300"
           />
         </div>
@@ -72,25 +73,34 @@ function Login({ onLogin }) {
   );
 }
 
-function Register({ onRegister }) {
+function Register() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [registrationError, setRegistrationError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [successfulRegistration, setSuccessfulRegistration] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setRegistrationError(false);
     if (username.trim() !== '' && password.trim() !== '' && password === confirmPassword) {
       setLoading(true);
-      axios.post(`/register`, {
-        username,
-        password
-      })
+      const json =
+      {
+        "username": username,
+        "password": password,
+        "email": "test@test.com",
+        "name": "test",
+        "lastname": "test",
+        "roles": [
+          "ROLE_DEFAULT"
+        ]
+      }
+      axios.post(`/api/v1/register`, json)
       .then(response => {
         setLoading(false);
-        const { token } = response.data;
-        onRegister(token);
+        setSuccessfulRegistration(true);
       })
       .catch(error => {
         setLoading(false);
@@ -102,37 +112,37 @@ function Register({ onRegister }) {
   };
 
   return (
-    <div className="max-w-md mx-auto p-4 h-full flex flex-col justify-center">
+    <div className="max-w-4xl mx-auto p-4 h-full flex flex-col justify-center">
       <h1 className="text-2xl font-bold mb-4 text-center">Bitcoin Wallet</h1>
       <h1 className="text-xl font-bold mb-4 text-center">Register</h1>
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
           <label htmlFor="username" className="block text-sm font-semibold mb-2">Username</label>
-          <input 
-            type="text" 
-            id="username" 
-            value={username} 
-            onChange={(e) => setUsername(e.target.value)} 
+          <input
+            type="text"
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             className="w-full py-2 px-3 rounded border border-gray-300"
           />
         </div>
         <div className="mb-4">
           <label htmlFor="password" className="block text-sm font-semibold mb-2">Password</label>
-          <input 
-            type="password" 
-            id="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
+          <input
+            type="password"
+            id="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             className="w-full py-2 px-3 rounded border border-gray-300"
           />
         </div>
         <div className="mb-4">
           <label htmlFor="confirmPassword" className="block text-sm font-semibold mb-2">Confirm Password</label>
-          <input 
-            type="password" 
-            id="confirmPassword" 
-            value={confirmPassword} 
-            onChange={(e) => setConfirmPassword(e.target.value)} 
+          <input
+            type="password"
+            id="confirmPassword"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             className="w-full py-2 px-3 rounded border border-gray-300"
           />
         </div>
@@ -144,6 +154,11 @@ function Register({ onRegister }) {
         {registrationError && (
           <div className="bg-red-100 text-red-700 p-2 mb-4">
             Registration failed. Please ensure all fields are filled correctly.
+          </div>
+        )}
+        {successfulRegistration && (
+          <div className="bg-green-100 text-green-700 p-2 mb-4 text-center">
+            Account registered!
           </div>
         )}
         <div className="text-center">
@@ -160,22 +175,25 @@ function BitcoinWallet() {
   const [transactionError, setTransactionError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [balance, setBalance] = useState(0);
-  const [transactionHistory, setTransactionHistory] = useState(["transakcja1", "transakcja2", "transakcja3"]);
-  const [token, setToken] = useState(sessionStorage.getItem('token'));
+  const [transactionHistory, setTransactionHistory] = useState([{hash: "2345678910111213141516171819", amount: "transakcja2", date: "1970.01.01"}]);
+  const [accessToken, setAccessToken] = useState(sessionStorage.getItem('accessToken'));
+  const [successfulTransaction, setSuccessfulTransaction] = useState(false);
+  const [transactionHash, setTransactionHash] = useState("12345678910111213141516171819");
+  const [clientId, setClientId] = useState("");
 
 
   useEffect(() => {
-    if (token) {
+    if (accessToken) {
       fetchBalance();
       fetchTransactionHistory();
     }
-  }, [token]);
+  }, [accessToken]);
 
   const fetchBalance = () => {
     axios.get(`/balance`,
       {
         headers: {
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${accessToken}`
         }
       })
       .then(response => {
@@ -190,7 +208,7 @@ function BitcoinWallet() {
     axios.get(`/transaction-history`,
       {
         headers: {
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${accessToken}`
         }
       })
       .then(response => {
@@ -201,16 +219,17 @@ function BitcoinWallet() {
       });
   };
 
-  const handleLoginOrRegister = (token) => {
-    setToken(token);
-    sessionStorage.setItem('token', token);
+  const handleLogin = (accessToken, clientId) => {
+    setAccessToken(accessToken);
+    setClientId(clientId);
+    sessionStorage.setItem('accessToken', accessToken);
   };
 
   const handleLogout = () => {
     setBalance(0);
     setTransactionHistory([]);
-    sessionStorage.setItem('token', "");
-    setToken(null);
+    sessionStorage.setItem('accessToken', "");
+    setAccessToken(null);
   };
 
   const toggleRegisterPage = () => {
@@ -221,10 +240,12 @@ function BitcoinWallet() {
     setLoading(true);
     axios.post(`/transaction`, {
       recipient: recipientAddress,
-      Authorization: `Bearer ${token}`
+      Authorization: `Bearer ${accessToken}`
     })
     .then(response => {
       setLoading(false);
+      setSuccessfulTransaction(true);
+      setTransactionHash("hash");
       fetchBalance();
       fetchTransactionHistory();
     })
@@ -237,29 +258,31 @@ function BitcoinWallet() {
   return (
     <div className="flex items-center justify-center h-screen">
       <div>
-        {token ? (
-          <div className="max-w-xl mx-auto p-4">
+        {accessToken ? (
+          <div className="max-w-4xl mx-auto p-4">
             <h1 className="text-2xl font-bold mb-4 text-center">Bitcoin Wallet</h1>
             <div className="mb-4">
               <p className="mb-2">Balance: {balance} BTC</p>
               {transactionHistory.length > 0 && (
                 <>
                   <h2 className="text-lg font-semibold mb-2">Transaction History</h2>
-                  <div>
+                  <ul className="overflow-y-auto max-h-80">
                     {transactionHistory.map((transaction, index) => (
-                      <div key={index}>{transaction}</div>
+                      <li key={index}>
+                        Transaction hash: {transaction.hash} | Amount: {transaction.amount} BTC | Date: {transaction.date}
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </>
               )}
             </div>
             <div className="mb-4">
               <label htmlFor="recipientAddress" className="block text-sm font-semibold mb-2">Recipient Address</label>
-              <input 
-                type="text" 
-                id="recipientAddress" 
-                value={recipientAddress} 
-                onChange={(e) => setRecipientAddress(e.target.value)} 
+              <input
+                type="text"
+                id="recipientAddress"
+                value={recipientAddress}
+                onChange={(e) => setRecipientAddress(e.target.value)}
                 className="w-full py-2 px-3 rounded border border-gray-300"
               />
             </div>
@@ -273,6 +296,11 @@ function BitcoinWallet() {
                 Transaction failed. Please try again later.
               </div>
             )}
+            {successfulTransaction && (
+              <div className="bg-green-100 text-green-700 p-2 mb-4">
+                {`Transaction done! Hash ${transactionHash}`}
+              </div>
+            )}
             <div className="mt-4 text-center">
               <button onClick={handleTransaction} className="bg-blue-500 text-white px-4 py-2 rounded">Make Transaction</button>
             </div>
@@ -282,12 +310,12 @@ function BitcoinWallet() {
           </div>
         ) : (
           isRegisterPage ? (
-            <Register onRegister={handleLoginOrRegister} />
+            <Register />
           ) : (
-            <Login onLogin={handleLoginOrRegister} />
+            <Login onLogin={handleLogin} />
           )
         )}
-        {!token && (
+        {!accessToken && (
           <div className="text-center mt-4">
             <button onClick={toggleRegisterPage} className="text-blue-500 hover:underline">
               {isRegisterPage ? "Already have an account? Login here." : "Don't have an account? Register here."}
