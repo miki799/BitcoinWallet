@@ -17,8 +17,8 @@ function Login({ onLogin }) {
       })
       .then(response => {
         setLoading(false);
-        const { username, token } = response.data;
-        onLogin(username, token);
+        const { token } = response.data;
+        onLogin(token);
       })
       .catch(error => {
         setLoading(false);
@@ -89,8 +89,8 @@ function Register({ onRegister }) {
       })
       .then(response => {
         setLoading(false);
-        const { username, token } = response.data;
-        onRegister(username);
+        const { token } = response.data;
+        onRegister(token);
       })
       .catch(error => {
         setLoading(false);
@@ -105,16 +105,6 @@ function Register({ onRegister }) {
     <div className="max-w-md mx-auto p-4 h-full flex flex-col justify-center">
       <h1 className="text-2xl font-bold mb-4 text-center">Bitcoin Wallet</h1>
       <h1 className="text-xl font-bold mb-4 text-center">Register</h1>
-      {loading && (
-        <div className="flex items-center justify-center mb-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        </div>
-      )}
-      {registrationError && (
-        <div className="bg-red-100 text-red-700 p-2 mb-4">
-          Registration failed. Please ensure all fields are filled correctly.
-        </div>
-      )}
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
           <label htmlFor="username" className="block text-sm font-semibold mb-2">Username</label>
@@ -146,6 +136,16 @@ function Register({ onRegister }) {
             className="w-full py-2 px-3 rounded border border-gray-300"
           />
         </div>
+        {loading && (
+        <div className="flex items-center justify-center mb-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
+        )}
+        {registrationError && (
+          <div className="bg-red-100 text-red-700 p-2 mb-4">
+            Registration failed. Please ensure all fields are filled correctly.
+          </div>
+        )}
         <div className="text-center">
           <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">Register</button>
         </div>
@@ -155,7 +155,6 @@ function Register({ onRegister }) {
 }
 
 function BitcoinWallet() {
-  const [loggedInUser, setLoggedInUser] = useState(null);
   const [isRegisterPage, setIsRegisterPage] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState('');
   const [transactionError, setTransactionError] = useState(false);
@@ -166,14 +165,14 @@ function BitcoinWallet() {
 
 
   useEffect(() => {
-    if (loggedInUser) {
+    if (token) {
       fetchBalance();
       fetchTransactionHistory();
     }
-  }, [loggedInUser]);
+  }, [token]);
 
   const fetchBalance = () => {
-    axios.get(`/balance?username=${loggedInUser}`,
+    axios.get(`/balance`,
       {
         headers: {
           Authorization: `Bearer ${token}`
@@ -188,7 +187,7 @@ function BitcoinWallet() {
   };
 
   const fetchTransactionHistory = () => {
-    axios.get(`/transaction-history?username=${loggedInUser}`,
+    axios.get(`/transaction-history`,
       {
         headers: {
           Authorization: `Bearer ${token}`
@@ -202,17 +201,16 @@ function BitcoinWallet() {
       });
   };
 
-  const handleLoginOrRegister = (username, token) => {
-    setLoggedInUser(username);
+  const handleLoginOrRegister = (token) => {
     setToken(token);
     sessionStorage.setItem('token', token);
   };
 
   const handleLogout = () => {
-    setLoggedInUser(null);
     setBalance(0);
     setTransactionHistory([]);
     sessionStorage.setItem('token', "");
+    setToken(null);
   };
 
   const toggleRegisterPage = () => {
@@ -222,7 +220,6 @@ function BitcoinWallet() {
   const handleTransaction = () => {
     setLoading(true);
     axios.post(`/transaction`, {
-      sender: loggedInUser,
       recipient: recipientAddress,
       Authorization: `Bearer ${token}`
     })
@@ -240,7 +237,7 @@ function BitcoinWallet() {
   return (
     <div className="flex items-center justify-center h-screen">
       <div>
-        {loggedInUser ? (
+        {token ? (
           <div className="max-w-xl mx-auto p-4">
             <h1 className="text-2xl font-bold mb-4 text-center">Bitcoin Wallet</h1>
             <div className="mb-4">
@@ -290,7 +287,7 @@ function BitcoinWallet() {
             <Login onLogin={handleLoginOrRegister} />
           )
         )}
-        {!loggedInUser && (
+        {!token && (
           <div className="text-center mt-4">
             <button onClick={toggleRegisterPage} className="text-blue-500 hover:underline">
               {isRegisterPage ? "Already have an account? Login here." : "Don't have an account? Register here."}
