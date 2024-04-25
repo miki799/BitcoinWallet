@@ -175,53 +175,58 @@ function BitcoinWallet() {
   const [transactionError, setTransactionError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [balance, setBalance] = useState(0);
-  const [transactionHistory, setTransactionHistory] = useState([{hash: "2345678910111213141516171819", amount: "transakcja2", date: "1970.01.01"}]);
+  const [transactionAmount, setTransactionAmount] = useState("");
+  const [transactionHistory, setTransactionHistory] = useState([]);
   const [accessToken, setAccessToken] = useState(sessionStorage.getItem('accessToken'));
   const [successfulTransaction, setSuccessfulTransaction] = useState(false);
   const [transactionHash, setTransactionHash] = useState("12345678910111213141516171819");
   const [clientId, setClientId] = useState("");
-
+  const [walletAddress, setWalletAddress] = useState('');
+  const [transactionAmountError, setTransactionAmountError] = useState(false);
 
   useEffect(() => {
     if (accessToken) {
-      fetchBalance();
+      fetchWalletInfo();
       fetchTransactionHistory();
     }
   }, [accessToken]);
 
-  const fetchBalance = () => {
-    axios.get(`/balance`,
+  const fetchWalletInfo = () => {
+    axios.get(`/api/v1/wallet/info`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`
         }
       })
       .then(response => {
-        setBalance(response.data.balance);
+        setBalance(response.data.bitcoins);
+        setWalletAddress(response.data.address);
       })
       .catch(error => {
-        console.error('Error fetching balance:', error);
+        console.error('Error fetching wallet info:', error);
       });
-  };
+  }
 
   const fetchTransactionHistory = () => {
-    axios.get(`/transaction-history`,
+    axios.get(`/api/v1/wallet/transactions`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`
         }
       })
       .then(response => {
-        setTransactionHistory(response.data.transactions);
+        console.log(response.data);
+        setTransactionHistory(response.data);
       })
       .catch(error => {
         console.error('Error fetching transaction history:', error);
       });
   };
 
-  const handleLogin = (accessToken, clientId) => {
+  const handleLogin = (accessToken, clientId, walletAddress) => {
     setAccessToken(accessToken);
     setClientId(clientId);
+    setWalletAddress(walletAddress);
     sessionStorage.setItem('accessToken', accessToken);
   };
 
@@ -230,6 +235,7 @@ function BitcoinWallet() {
     setTransactionHistory([]);
     sessionStorage.setItem('accessToken', "");
     setAccessToken(null);
+    setWalletAddress('');
   };
 
   const toggleRegisterPage = () => {
@@ -237,16 +243,35 @@ function BitcoinWallet() {
   };
 
   const handleTransaction = () => {
+
+    setTransactionAmountError(false);
+    setTransactionError(false);
+
+    if (isNaN(parseFloat(transactionAmount)) || parseFloat(transactionAmount) <= 0 || parseFloat(transactionAmount) > balance) {
+      setTransactionAmountError(true);
+      return;
+    }
+
     setLoading(true);
-    axios.post(`/transaction`, {
-      recipient: recipientAddress,
-      Authorization: `Bearer ${accessToken}`
-    })
-    .then(response => {
+
+    const requestBody =
+    {
+      "to": recipientAddress,
+      "value": parseFloat(transactionAmount),
+    }
+
+    axios.post(`/api/v1/wallet/send`, requestBody,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    ).then(response => {
       setLoading(false);
       setSuccessfulTransaction(true);
       setTransactionHash("hash");
-      fetchBalance();
+      fetchWalletInfo();
       fetchTransactionHistory();
     })
     .catch(error => {
@@ -263,13 +288,15 @@ function BitcoinWallet() {
             <h1 className="text-2xl font-bold mb-4 text-center">Bitcoin Wallet</h1>
             <div className="mb-4">
               <p className="mb-2">Balance: {balance} BTC</p>
+              <p className="mb-2">Wallet Address: {walletAddress}</p>
               {transactionHistory.length > 0 && (
                 <>
                   <h2 className="text-lg font-semibold mb-2">Transaction History</h2>
                   <ul className="overflow-y-auto max-h-80">
                     {transactionHistory.map((transaction, index) => (
                       <li key={index}>
-                        Transaction hash: {transaction.hash} | Amount: {transaction.amount} BTC | Date: {transaction.date}
+                        {/* TODO */}
+                        {/* Transaction hash: {transaction.hash} | Amount: {transaction.amount} BTC | Date: {transaction.date} */}
                       </li>
                     ))}
                   </ul>
@@ -286,14 +313,29 @@ function BitcoinWallet() {
                 className="w-full py-2 px-3 rounded border border-gray-300"
               />
             </div>
+            <div className="mb-4">
+              <label htmlFor="transactionAmount" className="block text-sm font-semibold mb-2">Transaction Amount (BTC)</label>
+              <input
+                type="number"
+                id="transactionAmount"
+                value={transactionAmount}
+                onChange={(e) => setTransactionAmount(e.target.value)}
+                className="w-full py-2 px-3 rounded border border-gray-300"
+              />
+            </div>
+            {transactionAmountError && (
+              <div className="bg-red-100 text-red-700 p-2 mb-4">
+                Please enter a valid amount
+              </div>
+            )}
             {loading && (
               <div className="flex items-center justify-center mb-4">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
               </div>
             )}
             {transactionError && (
-              <div className="bg-red-100 text-red-700 p-2 mb-4">
-                Transaction failed. Please try again later.
+              <div className="bg-red-100 text-red-700 p-2 mb-4 text-center">
+                Transaction failed.
               </div>
             )}
             {successfulTransaction && (
