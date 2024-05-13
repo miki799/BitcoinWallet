@@ -10,6 +10,9 @@ function Login({ onLogin }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     setLoginError(false);
+    let accessToken = "";
+    let clientId = "";
+
     if (username.trim() !== '' && password.trim() !== '') {
       setLoading(true);
       axios.post(`/api/v1/login`, {
@@ -17,9 +20,22 @@ function Login({ onLogin }) {
         password
       })
       .then(response => {
-        setLoading(false);
-        const { accessToken, refreshToken, clientId } = response.data;
-        onLogin(accessToken, clientId);
+        clientId = response.data.client;
+        accessToken = response.data.accessToken;
+
+        axios.post(`/api/v1/wallet/init`, {}, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        })
+        .then(() => {
+          setLoading(false);
+          onLogin(accessToken, clientId);
+        })
+        .catch(error => {
+          setLoading(false);
+          setLoginError(true);
+        });
       })
       .catch(error => {
         setLoading(false);
@@ -34,11 +50,6 @@ function Login({ onLogin }) {
     <div className="max-w-4xl mx-auto p-4 h-full flex flex-col justify-center">
       <h1 className="text-2xl font-bold mb-4 text-center">Bitcoin Wallet</h1>
       <h1 className="text-xl font-bold mb-4 text-center">Login</h1>
-      {loading && (
-        <div className="flex items-center justify-center mb-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        </div>
-      )}
       {loginError && (
         <div className="bg-red-100 text-red-700 p-2 mb-4">
           Please enter username and password.
@@ -68,6 +79,11 @@ function Login({ onLogin }) {
         <div className="text-center">
           <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">Login</button>
         </div>
+        {loading && (
+          <div className="flex items-center justify-center mt-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          </div>
+        )}
       </form>
     </div>
   );
@@ -76,6 +92,8 @@ function Login({ onLogin }) {
 function Register() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [lastname, setLastname] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [registrationError, setRegistrationError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -91,8 +109,8 @@ function Register() {
         "username": username,
         "password": password,
         "email": "test@test.com",
-        "name": "test",
-        "lastname": "test",
+        "name": name,
+        "lastname": lastname,
         "roles": [
           "ROLE_DEFAULT"
         ]
@@ -123,6 +141,26 @@ function Register() {
             id="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            className="w-full py-2 px-3 rounded border border-gray-300"
+          />
+        </div>
+        <div className="mb-4">
+          <label htmlFor="name" className="block text-sm font-semibold mb-2">Name</label>
+          <input
+            type="text"
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full py-2 px-3 rounded border border-gray-300"
+          />
+        </div>
+        <div className="mb-4">
+          <label htmlFor="lastname" className="block text-sm font-semibold mb-2">Lastname</label>
+          <input
+            type="text"
+            id="lastname"
+            value={lastname}
+            onChange={(e) => setLastname(e.target.value)}
             className="w-full py-2 px-3 rounded border border-gray-300"
           />
         </div>
@@ -179,15 +217,17 @@ function BitcoinWallet() {
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [accessToken, setAccessToken] = useState(sessionStorage.getItem('accessToken'));
   const [successfulTransaction, setSuccessfulTransaction] = useState(false);
-  const [transactionHash, setTransactionHash] = useState("12345678910111213141516171819");
   const [clientId, setClientId] = useState("");
   const [walletAddress, setWalletAddress] = useState('');
   const [transactionAmountError, setTransactionAmountError] = useState(false);
+  const [users, setUsers] = useState([]);
 
   useEffect(() => {
     if (accessToken) {
+      setTimeout(() => console.log("loading"), 5000);
       fetchWalletInfo();
       fetchTransactionHistory();
+      fetchUsers();
     }
   }, [accessToken]);
 
@@ -223,6 +263,22 @@ function BitcoinWallet() {
       });
   };
 
+  const fetchUsers = () => {
+    axios.get(`/api/v1/users`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      })
+      .then(response => {
+        setUsers(response.data);
+        console.log(response.data);
+      })
+      .catch(error => {
+        console.error('Error fetching users:', error);
+      });
+  }
+
   const handleLogin = (accessToken, clientId, walletAddress) => {
     setAccessToken(accessToken);
     setClientId(clientId);
@@ -236,6 +292,11 @@ function BitcoinWallet() {
     sessionStorage.setItem('accessToken', "");
     setAccessToken(null);
     setWalletAddress('');
+    setRecipientAddress("");
+    setTransactionAmount("");
+    setTransactionAmountError(false);
+    setTransactionError(false);
+    setSuccessfulTransaction(false);
   };
 
   const toggleRegisterPage = () => {
@@ -243,11 +304,11 @@ function BitcoinWallet() {
   };
 
   const handleTransaction = () => {
-
+    let bal = parseFloat(balance.replace(" BTC", ""))
     setTransactionAmountError(false);
     setTransactionError(false);
 
-    if (isNaN(parseFloat(transactionAmount)) || parseFloat(transactionAmount) <= 0 || parseFloat(transactionAmount) > balance) {
+    if (isNaN(parseFloat(transactionAmount)) || parseFloat(transactionAmount) <= 0 || parseFloat(transactionAmount) > bal) {
       setTransactionAmountError(true);
       return;
     }
@@ -270,7 +331,8 @@ function BitcoinWallet() {
     ).then(response => {
       setLoading(false);
       setSuccessfulTransaction(true);
-      setTransactionHash("hash");
+      setTransactionAmount("");
+      setRecipientAddress("");
       fetchWalletInfo();
       fetchTransactionHistory();
     })
@@ -280,6 +342,12 @@ function BitcoinWallet() {
     });
   };
 
+  const returnDate = (transactionDate) => {
+    let date = new Date(transactionDate);
+    let formattedDate = `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
+    return formattedDate;
+  }
+
   return (
     <div className="flex items-center justify-center h-screen">
       <div>
@@ -287,31 +355,48 @@ function BitcoinWallet() {
           <div className="max-w-4xl mx-auto p-4">
             <h1 className="text-2xl font-bold mb-4 text-center">Bitcoin Wallet</h1>
             <div className="mb-4">
-              <p className="mb-2">Balance: {balance} BTC</p>
+              <p className="mb-2">Balance: {balance}</p>
               <p className="mb-2">Wallet Address: {walletAddress}</p>
               {transactionHistory.length > 0 && (
                 <>
                   <h2 className="text-lg font-semibold mb-2">Transaction History</h2>
-                  <ul className="overflow-y-auto max-h-80">
+                  <div className="overflow-y-auto max-h-80">
                     {transactionHistory.map((transaction, index) => (
-                      <li key={index}>
-                        {/* TODO */}
-                        {/* Transaction hash: {transaction.hash} | Amount: {transaction.amount} BTC | Date: {transaction.date} */}
-                      </li>
+                      <div key={index} className="border rounded-md p-4 mb-2">
+                        <p className="font-semibold">Transaction ID: {transaction.id}</p>
+                        <div className="flex justify-between mt-2">
+                          <div className="mr-6">
+                            <p className="font-semibold">From:</p>
+                            <p>Address: {transaction.from.address}  </p>
+                          </div>
+                          <div>
+                            <p className="font-semibold">To:</p>
+                            <p>Address: {transaction.to.address}</p>
+                          </div>
+                        </div>
+                        <p className="mt-2">Fee: {transaction.fee}</p>
+                        <p>Amount: {transaction.amount}</p>
+                        <p>Date: {returnDate(transaction.date)}</p>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </>
-              )}
+              )
+              }
             </div>
             <div className="mb-4">
               <label htmlFor="recipientAddress" className="block text-sm font-semibold mb-2">Recipient Address</label>
-              <input
-                type="text"
+              <select
                 id="recipientAddress"
                 value={recipientAddress}
                 onChange={(e) => setRecipientAddress(e.target.value)}
                 className="w-full py-2 px-3 rounded border border-gray-300"
-              />
+              >
+                <option value="">Select a user</option>
+                {users.map((user, index) => (
+                  <option key={index} value={user.address}>{user.name + " " + user.lastname + `, Wallet address: ${user.address}`}</option>
+                ))}
+              </select>
             </div>
             <div className="mb-4">
               <label htmlFor="transactionAmount" className="block text-sm font-semibold mb-2">Transaction Amount (BTC)</label>
@@ -340,7 +425,7 @@ function BitcoinWallet() {
             )}
             {successfulTransaction && (
               <div className="bg-green-100 text-green-700 p-2 mb-4">
-                {`Transaction done! Hash ${transactionHash}`}
+                {"Transaction done!"}
               </div>
             )}
             <div className="mt-4 text-center">
