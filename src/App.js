@@ -221,13 +221,21 @@ function BitcoinWallet() {
   const [walletAddress, setWalletAddress] = useState('');
   const [transactionAmountError, setTransactionAmountError] = useState(false);
   const [users, setUsers] = useState([]);
+  const [initFinished, setInitFinished] = useState(false);
+
+  const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay))
+
+  async function init() {
+    await sleep(2000);
+    fetchWalletInfo();
+    fetchTransactionHistory();
+    fetchUsers();
+    setInitFinished(true);
+  }
 
   useEffect(() => {
     if (accessToken) {
-      setTimeout(() => console.log("loading"), 5000);
-      fetchWalletInfo();
-      fetchTransactionHistory();
-      fetchUsers();
+      init();
     }
   }, [accessToken]);
 
@@ -255,7 +263,6 @@ function BitcoinWallet() {
         }
       })
       .then(response => {
-        console.log(response.data);
         setTransactionHistory(response.data);
       })
       .catch(error => {
@@ -272,7 +279,6 @@ function BitcoinWallet() {
       })
       .then(response => {
         setUsers(response.data);
-        console.log(response.data);
       })
       .catch(error => {
         console.error('Error fetching users:', error);
@@ -297,6 +303,7 @@ function BitcoinWallet() {
     setTransactionAmountError(false);
     setTransactionError(false);
     setSuccessfulTransaction(false);
+    setInitFinished(false);
   };
 
   const toggleRegisterPage = () => {
@@ -352,89 +359,97 @@ function BitcoinWallet() {
     <div className="flex items-center justify-center h-screen">
       <div>
         {accessToken ? (
-          <div className="max-w-4xl mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-4 text-center">Bitcoin Wallet</h1>
-            <div className="mb-4">
-              <p className="mb-2">Balance: {balance}</p>
-              <p className="mb-2">Wallet Address: {walletAddress}</p>
-              {transactionHistory.length > 0 && (
-                <>
-                  <h2 className="text-lg font-semibold mb-2">Transaction History</h2>
-                  <div className="overflow-y-auto max-h-80">
-                    {transactionHistory.map((transaction, index) => (
-                      <div key={index} className="border rounded-md p-4 mb-2">
-                        <p className="font-semibold">Transaction ID: {transaction.id}</p>
-                        <div className="flex justify-between mt-2">
-                          <div className="mr-6">
-                            <p className="font-semibold">From:</p>
-                            <p>Address: {transaction.from.address}  </p>
+          initFinished ? (
+            <div className="max-w-4xl mx-auto p-4">
+              <h1 className="text-2xl font-bold mb-4 text-center">Bitcoin Wallet</h1>
+              <div className="mb-4">
+                <p className="mb-2">Balance: {balance}</p>
+                <p className="mb-2">Wallet Address: {walletAddress}</p>
+                {transactionHistory.length > 0 && (
+                  <>
+                    <h2 className="text-lg font-semibold mb-2">Transaction History</h2>
+                    <div className="overflow-y-auto max-h-80">
+                      {transactionHistory.map((transaction, index) => (
+                        <div key={index} className="border rounded-md p-4 mb-2">
+                          <p className="font-semibold">Transaction ID: {transaction.id}</p>
+                          <div className="flex justify-between mt-2">
+                            <div className="mr-6">
+                              <p className="font-semibold">From:</p>
+                              <p>Address: {transaction.from.address}  </p>
+                            </div>
+                            <div>
+                              <p className="font-semibold">To:</p>
+                              <p>Address: {transaction.to.address}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-semibold">To:</p>
-                            <p>Address: {transaction.to.address}</p>
-                          </div>
+                          <p className="mt-2">Fee: {transaction.fee}</p>
+                          <p>Amount: {transaction.amount}</p>
+                          <p>Date: {returnDate(transaction.date)}</p>
                         </div>
-                        <p className="mt-2">Fee: {transaction.fee}</p>
-                        <p>Amount: {transaction.amount}</p>
-                        <p>Date: {returnDate(transaction.date)}</p>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )
-              }
-            </div>
-            <div className="mb-4">
-              <label htmlFor="recipientAddress" className="block text-sm font-semibold mb-2">Recipient Address</label>
-              <select
-                id="recipientAddress"
-                value={recipientAddress}
-                onChange={(e) => setRecipientAddress(e.target.value)}
-                className="w-full py-2 px-3 rounded border border-gray-300"
-              >
-                <option value="">Select a user</option>
-                {users.map((user, index) => (
-                  <option key={index} value={user.address}>{user.name + " " + user.lastname + `, Wallet address: ${user.address}`}</option>
-                ))}
-              </select>
-            </div>
-            <div className="mb-4">
-              <label htmlFor="transactionAmount" className="block text-sm font-semibold mb-2">Transaction Amount (BTC)</label>
-              <input
-                type="number"
-                id="transactionAmount"
-                value={transactionAmount}
-                onChange={(e) => setTransactionAmount(e.target.value)}
-                className="w-full py-2 px-3 rounded border border-gray-300"
-              />
-            </div>
-            {transactionAmountError && (
-              <div className="bg-red-100 text-red-700 p-2 mb-4">
-                Please enter a valid amount
+                      ))}
+                    </div>
+                  </>
+                )
+                }
               </div>
-            )}
-            {loading && (
-              <div className="flex items-center justify-center mb-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              <div className="mb-4">
+                <label htmlFor="recipientAddress" className="block text-sm font-semibold mb-2">Recipient Address</label>
+                <select
+                  id="recipientAddress"
+                  value={recipientAddress}
+                  onChange={(e) => setRecipientAddress(e.target.value)}
+                  className="w-full py-2 px-3 rounded border border-gray-300"
+                >
+                  <option value="">Select a user</option>
+                  {users.map((user, index) => (
+                    <option key={index} value={user.address}>{user.name + " " + user.lastname + `, Wallet address: ${user.address}`}</option>
+                  ))}
+                </select>
               </div>
-            )}
-            {transactionError && (
-              <div className="bg-red-100 text-red-700 p-2 mb-4 text-center">
-                Transaction failed.
+              <div className="mb-4">
+                <label htmlFor="transactionAmount" className="block text-sm font-semibold mb-2">Transaction Amount (BTC)</label>
+                <input
+                  type="number"
+                  id="transactionAmount"
+                  value={transactionAmount}
+                  onChange={(e) => setTransactionAmount(e.target.value)}
+                  className="w-full py-2 px-3 rounded border border-gray-300"
+                />
               </div>
-            )}
-            {successfulTransaction && (
-              <div className="bg-green-100 text-green-700 p-2 mb-4">
-                {"Transaction done!"}
+              {transactionAmountError && (
+                <div className="bg-red-100 text-red-700 p-2 mb-4">
+                  Please enter a valid amount
+                </div>
+              )}
+              {loading && (
+                <div className="flex items-center justify-center mb-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                </div>
+              )}
+              {transactionError && (
+                <div className="bg-red-100 text-red-700 p-2 mb-4 text-center">
+                  Transaction failed.
+                </div>
+              )}
+              {successfulTransaction && (
+                <div className="bg-green-100 text-green-700 p-2 mb-4">
+                  {"Transaction done!"}
+                </div>
+              )}
+              <div className="mt-4 text-center">
+                <button onClick={handleTransaction} className="bg-blue-500 text-white px-4 py-2 rounded">Make Transaction</button>
               </div>
-            )}
-            <div className="mt-4 text-center">
-              <button onClick={handleTransaction} className="bg-blue-500 text-white px-4 py-2 rounded">Make Transaction</button>
+              <div className="mt-4 text-center">
+                <button onClick={handleLogout} className="bg-gray-500 text-white px-4 py-2 rounded">Logout</button>
+              </div>
             </div>
-            <div className="mt-4 text-center">
-              <button onClick={handleLogout} className="bg-gray-500 text-white px-4 py-2 rounded">Logout</button>
+          )
+          :
+          (
+            <div className="flex items-center justify-center mb-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
             </div>
-          </div>
+          )
         ) : (
           isRegisterPage ? (
             <Register />
